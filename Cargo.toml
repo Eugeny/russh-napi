@@ -21,6 +21,7 @@ russh-keys = { version = "0.44.0-beta.3" }
 async-trait = "0.1"
 futures = "0.3"
 thiserror = "1.0"
+delegate = "0.12.0"
 
 [build-dependencies]
 napi-build = "1"

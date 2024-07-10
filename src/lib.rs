@@ -14,8 +14,10 @@ use error::WrappedError;
 
 mod error;
 mod key;
+mod transport;
 
 pub use key::parse_key;
+use transport::SshTransport;
 
 pub struct SSHClientHandler {
     pub server_key_callback: ThreadsafeFunction<SshPublicKey, Promise<bool>>,
@@ -172,10 +174,8 @@ impl russh::client::Handler for SSHClientHandler {
         banner: &str,
         _session: &mut russh::client::Session,
     ) -> Result<(), Self::Error> {
-        self.banner_callback.call(
-            Ok(banner.into()),
-            ThreadsafeFunctionCallMode::NonBlocking,
-        );
+        self.banner_callback
+            .call(Ok(banner.into()), ThreadsafeFunctionCallMode::NonBlocking);
         Ok(())
     }
 }
@@ -487,7 +487,7 @@ impl SshClient {
 
 #[napi]
 pub async fn connect(
-    address: String,
+    transport: &SshTransport,
     cipher_algos: Option<Vec<String>>,
     kex_algos: Option<Vec<String>>,
     key_algos: Option<Vec<String>>,
@@ -550,13 +550,14 @@ pub async fn connect(
         ..Default::default()
     };
 
-    let socket = tokio::net::TcpStream::connect(address.clone())
-        .await
-        .map_err(WrappedError::from)?;
+    let Some(transport) = transport.take().await else {
+        return Err(napi::Error::new(
+            napi::Status::GenericFailure,
+            "Transport already used",
+        ));
+    };
 
-    socket.set_nodelay(true).map_err(WrappedError::from)?;
-
-    let handle = russh::client::connect_stream(Arc::new(cfg), socket, handler)
+    let handle = russh::client::connect_stream(Arc::new(cfg), transport, handler)
         .await
         .map_err(WrappedError::from)?;
 

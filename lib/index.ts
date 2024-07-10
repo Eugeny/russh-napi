@@ -118,14 +118,14 @@ export class SSHClient extends Destructible {
     ) { super() }
 
     static async connect(
-        address: string,
+        transport: russh.SshTransport,
         serverKeyCallback: (key: russh.SshPublicKey) => Promise<boolean>,
         config?: Config,
     ): Promise<SSHClient> {
         const eventInterface = new ClientEventInterface()
 
         const russhClient = await russh.connect(
-            address,
+            transport,
             config?.preferred?.ciphers,
             config?.preferred?.kex,
             config?.preferred?.key,
@@ -355,6 +355,7 @@ export class AuthenticatedSSHClient extends Destructible {
 export {
     KeyboardInteractiveAuthenticationPrompt,
     SshPublicKey,
+    SshTransport,
     supportedCiphers as getSupportedCiphers,
     supportedKexAlgorithms as getSupportedKexAlgorithms,
     supportedMacs as getSupportedMACs,
