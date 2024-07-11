@@ -2,18 +2,23 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use channel::SshChannel;
 use key::{SshKeyPair, SshPublicKey};
 use napi::bindgen_prelude::{Promise, Uint8Array};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use russh::client::DisconnectReason;
 use russh::ChannelId;
+use russh_sftp::client::SftpSession;
+use sftp::SftpChannel;
 use tokio::sync::Mutex;
 
 use error::WrappedError;
 
+mod channel;
 mod error;
 mod key;
+mod sftp;
 mod transport;
 
 pub use key::parse_key;
@@ -176,120 +181,6 @@ impl russh::client::Handler for SSHClientHandler {
     ) -> Result<(), Self::Error> {
         self.banner_callback
             .call(Ok(banner.into()), ThreadsafeFunctionCallMode::NonBlocking);
-        Ok(())
-    }
-}
-
-#[napi]
-pub struct SshChannel {
-    handle: Arc<Mutex<russh::Channel<russh::client::Msg>>>,
-}
-
-impl From<russh::Channel<russh::client::Msg>> for SshChannel {
-    fn from(ch: russh::Channel<russh::client::Msg>) -> Self {
-        SshChannel {
-            handle: Arc::new(Mutex::new(ch)),
-        }
-    }
-}
-
-#[napi]
-impl SshChannel {
-    #[napi]
-    pub async fn id(&self) -> u32 {
-        self.handle.lock().await.id().into()
-    }
-
-    #[napi]
-    pub async fn request_pty(
-        &self,
-        term: String,
-        col_width: u32,
-        row_height: u32,
-        pix_width: u32,
-        pix_height: u32,
-    ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle
-            .request_pty(
-                false,
-                &term,
-                col_width,
-                row_height,
-                pix_width,
-                pix_height,
-                &[],
-            )
-            .await
-            .map_err(WrappedError::from)?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn request_shell(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle
-            .request_shell(false)
-            .await
-            .map_err(WrappedError::from)?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn request_x11_forwarding(
-        &self,
-        single_connection: bool,
-        x11_protocol: String,
-        x11_cookie: String,
-        screen: u32,
-    ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle
-            .request_x11(false, single_connection, &x11_protocol, &x11_cookie, screen)
-            .await
-            .map_err(WrappedError::from)?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn window_change(
-        &self,
-        col_width: u32,
-        row_height: u32,
-        pix_width: u32,
-        pix_height: u32,
-    ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle
-            .window_change(col_width, row_height, pix_width, pix_height)
-            .await
-            .map_err(WrappedError::from)?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn data(&self, data: Uint8Array) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle.data(&data[..]).await.map_err(|_| {
-            napi::Error::new(
-                napi::Status::GenericFailure,
-                "Failed to send data to channel",
-            )
-        })?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn eof(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle.eof().await.map_err(WrappedError::from)?;
-        Ok(())
-    }
-
-    #[napi]
-    pub async fn close(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
-        handle.close().await.map_err(WrappedError::from)?;
         Ok(())
     }
 }
@@ -472,6 +363,23 @@ impl SshClient {
             .await
             .map_err(WrappedError::from)?;
         Ok(ch.into())
+    }
+
+    #[napi]
+    pub async fn channel_open_sftp(&self) -> napi::Result<SftpChannel> {
+        let handle = self.handle.lock().await;
+        let ch = handle
+            .channel_open_session()
+            .await
+            .map_err(WrappedError::from)?;
+        ch.request_subsystem(true, "sftp")
+            .await
+            .map_err(WrappedError::from)?;
+        let id = ch.id();
+        let sftp = SftpSession::new(ch.into_stream())
+            .await
+            .map_err(WrappedError::from)?;
+        Ok(SftpChannel::new(id.into(), sftp))
     }
 
     #[napi]

@@ -1,5 +1,9 @@
 import * as russh from '../russh'
-import { Subject, Observable, filter, map, mergeMap, from, AsyncSubject } from 'rxjs'
+import { Observable, mergeMap, from } from 'rxjs'
+import { Destructible } from './helpers'
+import { SFTP } from './sftp'
+import { Channel } from './channel'
+import { ClientEventInterface } from './events'
 
 export class KeyPair {
     private constructor(protected inner: russh.SshKeyPair) { }
@@ -23,71 +27,6 @@ export interface TCPChannelOpenEvent {
     readonly clientPort: number
 }
 
-class ClientEventInterface {
-    data$ = new Subject<[number, Uint8Array]>()
-    eof$ = new Subject<number>()
-    close$ = new Subject<number>()
-    disconnect$ = new Subject<void>()
-    x11ChannelOpen$ = new Subject<[russh.SshChannel, string, number]>()
-    tcpChannelOpen$ = new Subject<[russh.SshChannel, string, number, string, number]>()
-    banner$ = new AsyncSubject<string>()
-
-    complete() {
-        this.data$.complete()
-        this.eof$.complete()
-        this.close$.complete()
-        this.disconnect$.complete()
-        this.x11ChannelOpen$.complete()
-        this.tcpChannelOpen$.complete()
-        this.banner$.complete()
-    }
-
-    dataCallback = (_: unknown, channel: number, data: Uint8Array) => {
-        this.data$.next([channel, data])
-    }
-
-    eofCallback = (_: unknown, channel: number) => {
-        this.eof$.next(channel)
-    }
-
-    closeCallback = (_: unknown, channel: number) => {
-        this.close$.next(channel)
-    }
-
-    disconnectCallback = () => {
-        this.disconnect$.next()
-    }
-
-    x11ChannelOpenCallback = (_: unknown, channel: russh.SshChannel, address: string, port: number) => {
-        this.x11ChannelOpen$.next([channel, address, port])
-    }
-
-    tcpChannelOpenCallback = (_: unknown, channel: russh.SshChannel, connectedAddress: string, connectedPort: number, originatorAddress: string, originatorPort: number) => {
-        this.tcpChannelOpen$.next([channel, connectedAddress, connectedPort, originatorAddress, originatorPort])
-    }
-
-    bannerCallback = (_: unknown, banner: string) => {
-        this.banner$.next(banner)
-        this.banner$.complete()
-    }
-}
-
-class Destructible {
-    private destructed = false
-
-    protected destruct() {
-        if (this.destructed) {
-            return
-        }
-        this.destructed = true
-    }
-
-    protected assertNotDestructed() {
-        if (this.destructed) {
-            throw new Error('Object has been destructed')
-        }
-    }
-}
 
 export type KeyboardInteractiveAuthenticationState = {
     state: 'failure',
@@ -195,84 +134,6 @@ export class SSHClient extends Destructible {
     }
 }
 
-export interface PTYSize {
-    columns: number,
-    rows: number,
-    pixWidth: number,
-    pixHeight: number,
-}
-
-export interface X11Options {
-    singleConnection: boolean,
-    authProtocol: string,
-    authCookie: string,
-    screenNumber: number,
-}
-
-export class Channel extends Destructible {
-    readonly data$: Observable<Uint8Array>
-    readonly eof$: Observable<void>
-    readonly closed$: Observable<void>
-
-    constructor(
-        public readonly id: number,
-        private inner: russh.SshChannel,
-        events: ClientEventInterface,
-    ) {
-        super()
-        this.data$ = events.data$.pipe(filter(([channel]) => channel === id), map(([_, data]) => data))
-        this.eof$ = events.eof$.pipe(filter(channel => channel === id), map(() => { }))
-        this.closed$ = events.close$.pipe(filter(channel => channel === id), map(() => { }))
-    }
-
-    async requestShell(): Promise<void> {
-        await this.inner.requestShell()
-    }
-
-    async requestPTY(
-        terminal: string,
-        opts: PTYSize,
-    ): Promise<void> {
-        await this.inner.requestPty(
-            terminal,
-            opts.columns,
-            opts.rows,
-            opts.pixWidth,
-            opts.pixHeight
-        )
-    }
-
-    async requestX11Forwarding(options: X11Options): Promise<void> {
-        await this.inner.requestX11Forwarding(
-            options.singleConnection,
-            options.authProtocol,
-            options.authCookie,
-            options.screenNumber
-        )
-    }
-
-    async resizePTY(size: PTYSize): Promise<void> {
-        await this.inner.windowChange(
-            size.columns,
-            size.rows,
-            size.pixWidth,
-            size.pixHeight
-        )
-    }
-
-    async write(data: Uint8Array): Promise<void> {
-        await this.inner.data(data)
-    }
-
-    async eof(): Promise<void> {
-        await this.inner.eof()
-    }
-
-    async close(): Promise<void> {
-        await this.inner.close()
-    }
-}
-
 export class AuthenticatedSSHClient extends Destructible {
     readonly disconnect$: Observable<void> = this.events.disconnect$
     readonly x11ChannelOpen$: Observable<X11ChannelOpenEvent> =
@@ -305,6 +166,10 @@ export class AuthenticatedSSHClient extends Destructible {
 
     async openSessionChannel(): Promise<Channel> {
         return await this.wrapChannel(await this.client.channelOpenSession())
+    }
+
+    async openSFTPChannel(): Promise<SFTP> {
+        return new SFTP(await this.client.channelOpenSftp(), this.events)
     }
 
     async openTCPForwardChannel(options: {
@@ -356,9 +221,14 @@ export {
     KeyboardInteractiveAuthenticationPrompt,
     SshPublicKey,
     SshTransport,
+    SftpFileType as SFTPFileType,
     supportedCiphers as getSupportedCiphers,
     supportedKexAlgorithms as getSupportedKexAlgorithms,
     supportedMacs as getSupportedMACs,
     supportedCompressionAlgorithms as getSupportedCompressionAlgorithms,
     supportedKeyTypes as getSupportedKeyTypes,
 } from '../russh'
+export {
+    SFTP, SFTPDirectoryEntry,
+} from './sftp'
+export { Channel }

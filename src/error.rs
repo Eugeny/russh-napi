@@ -9,6 +9,9 @@ pub enum WrappedError {
     Russh(#[from] russh::Error),
 
     #[error(transparent)]
+    Sftp(#[from] russh_sftp::client::error::Error),
+
+    #[error(transparent)]
     Node(#[from] napi::Error),
 }
 
@@ -19,6 +22,9 @@ impl From<WrappedError> for napi::Error {
                 napi::Error::new(napi::Status::GenericFailure, format!("{err:?}"))
             }
             WrappedError::Russh(err) => {
+                napi::Error::new(napi::Status::GenericFailure, format!("{err:?}"))
+            }
+            WrappedError::Sftp(err) => {
                 napi::Error::new(napi::Status::GenericFailure, format!("{err:?}"))
             }
             WrappedError::Node(err) => err,
