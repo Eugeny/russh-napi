@@ -6,3 +6,4 @@ yarn-error.log
 *.d.ts
 target
 russh
+*.tgz

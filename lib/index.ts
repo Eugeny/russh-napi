@@ -227,8 +227,10 @@ export {
     supportedMacs as getSupportedMACs,
     supportedCompressionAlgorithms as getSupportedCompressionAlgorithms,
     supportedKeyTypes as getSupportedKeyTypes,
+    OPEN_APPEND, OPEN_CREATE, OPEN_READ, OPEN_TRUNCATE, OPEN_WRITE,
+    SftpFile as SFTPFile,
 } from '../russh'
 export {
-    SFTP, SFTPDirectoryEntry,
+    SFTP, SFTPDirectoryEntry, SFTPMetadata,
 } from './sftp'
 export { Channel }
