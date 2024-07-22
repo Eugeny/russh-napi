@@ -51,7 +51,7 @@ jobs:
     - run: yarn --frozen-lockfile
     # - run: yarn build
 
-    - run: napi build --target ${{ matrix.target }} --platform
+    - run: yarn napi build --target ${{ matrix.target }} --platform
 
     - uses: actions/upload-artifact@v4
       with:
