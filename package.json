@@ -15,8 +15,7 @@
   },
   "scripts": {
     "build": "node build.mjs --release && tsc",
-    "build:debug": "node build.mjs && tsc",
-    "postinstall": "npm run build"
+    "build:debug": "node build.mjs && tsc"
   },
   "peerDependencies": {
     "rxjs": "^7"
