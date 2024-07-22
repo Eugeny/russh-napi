@@ -14,8 +14,9 @@
     "name": "russh"
   },
   "scripts": {
-    "build": "node build.mjs --release && tsc",
-    "build:debug": "node build.mjs && tsc"
+    "artifacts": "napi artifacts",
+    "build": "napi build --dts russh.d.ts --platform --release",
+    "build:debug": "napi build --dts russh.d.ts --platform"
   },
   "peerDependencies": {
     "rxjs": "^7"
