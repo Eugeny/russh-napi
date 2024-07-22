@@ -68,7 +68,7 @@ jobs:
             target: aarch64-pc-windows-msvc
             build: yarn build --target aarch64-pc-windows-msvc
 
-    name: stable - ${{ matrix.settings.target }} - node@18
+    name: ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
 
     steps:
@@ -124,7 +124,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish
+    name: pack
     runs-on: ubuntu-latest
     needs:
       - build
@@ -137,12 +137,11 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-      - name: Move artifacts
-        run: yarn artifacts
+          merge-multiple: true
 
       - run: yarn napi build --dts lib/native.d.ts
       - run: rm russh.node
