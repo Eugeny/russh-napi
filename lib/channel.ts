@@ -1,4 +1,4 @@
-import * as russh from '../russh'
+import * as russh from './native'
 import { Observable, filter, map } from 'rxjs'
 import { Destructible } from './helpers'
 import { ClientEventInterface } from './events'

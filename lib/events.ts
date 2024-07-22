@@ -1,4 +1,4 @@
-import * as russh from '../russh'
+import * as russh from './native'
 import { AsyncSubject, Subject } from "rxjs"
 
 export class ClientEventInterface {
