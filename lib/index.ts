@@ -1,9 +1,35 @@
-import * as russh from '../russh'
+import type * as Russh from '../russh'
 import { Observable, mergeMap, from } from 'rxjs'
 import { Destructible } from './helpers'
 import { SFTP } from './sftp'
 import { Channel } from './channel'
 import { ClientEventInterface } from './events'
+
+let russh: Russh
+
+let triple = process.env.RUST_TARGET_TRIPLE || {
+    win32: {
+        x64: 'x86_64-pc-windows-msvc',
+        arm: 'arm-pc-windows-msvc',
+        arm64: 'aarch64-pc-windows-msvc'
+    },
+    darwin: {
+        x64: 'x86_64-apple-darwin',
+        arm64: 'aarch64-apple-darwin'
+    },
+    linux: {
+        x64: 'x86_64-unknown-linux-gnu',
+        arm: 'armv7-unknown-linux-gnueabihf',
+        arm64: 'aarch64-unknown-linux-musl'
+    }
+}[process.platform][process.arch]
+
+try {
+    russh = require(`../target/russh-${triple}.node`)
+} catch {
+    russh = require('../target/russh.node')
+}
+
 
 export class KeyPair {
     private constructor(protected inner: russh.SshKeyPair) { }

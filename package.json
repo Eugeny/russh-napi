@@ -1,10 +1,12 @@
 {
   "name": "russh",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.4",
   "main": "lib/index.js",
   "license": "Apache-2.0",
+  "dependencies": {
+    "@napi-rs/cli": "^2.18.3"
+  },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.3",
     "typescript": "^5.5.2",
     "rxjs": "^7"
   },
@@ -12,8 +14,8 @@
     "name": "russh"
   },
   "scripts": {
-    "build": "napi build --dts russh.d.ts --release && tsc",
-    "build:debug": "napi build --dts russh.d.ts && tsc",
+    "build": "node build.mjs --release && tsc",
+    "build:debug": "node build.mjs && tsc",
     "postinstall": "npm run build"
   },
   "peerDependencies": {
