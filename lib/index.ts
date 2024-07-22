@@ -1,38 +1,13 @@
-import type * as Russh from '../russh'
 import { Observable, mergeMap, from } from 'rxjs'
 import { Destructible } from './helpers'
 import { SFTP } from './sftp'
 import { Channel } from './channel'
 import { ClientEventInterface } from './events'
 
-let russh: Russh
-
-let triple = process.env.RUST_TARGET_TRIPLE || {
-    win32: {
-        x64: 'x86_64-pc-windows-msvc',
-        arm: 'arm-pc-windows-msvc',
-        arm64: 'aarch64-pc-windows-msvc'
-    },
-    darwin: {
-        x64: 'x86_64-apple-darwin',
-        arm64: 'aarch64-apple-darwin'
-    },
-    linux: {
-        x64: 'x86_64-unknown-linux-gnu',
-        arm: 'armv7-unknown-linux-gnueabihf',
-        arm64: 'aarch64-unknown-linux-musl'
-    }
-}[process.platform][process.arch]
-
-try {
-    russh = require(`../target/russh-${triple}.node`)
-} catch {
-    russh = require('../target/russh.node')
-}
-
+import russh, { SshKeyPair, KeyboardInteractiveAuthenticationPrompt, SshClient, SshChannel, SshPublicKey, SshTransport } from './native'
 
 export class KeyPair {
-    private constructor(protected inner: russh.SshKeyPair) { }
+    private constructor(protected inner: SshKeyPair) { }
 
     static async parse(data: string, passphrase?: string): Promise<KeyPair> {
         return new KeyPair(await russh.parseKey(data, passphrase))
@@ -60,7 +35,7 @@ export type KeyboardInteractiveAuthenticationState = {
     state: 'infoRequest'
     name: string
     instructions: string
-    prompts: () => russh.KeyboardInteractiveAuthenticationPrompt[]
+    prompts: () => typeof KeyboardInteractiveAuthenticationPrompt[]
 }
 
 export interface Config {
@@ -78,17 +53,16 @@ export class SSHClient extends Destructible {
     readonly banner$ = this.events.banner$.asObservable()
 
     private constructor(
-        private client: russh.SshClient,
+        private client: SshClient,
         private events: ClientEventInterface,
     ) { super() }
 
     static async connect(
-        transport: russh.SshTransport,
-        serverKeyCallback: (key: russh.SshPublicKey) => Promise<boolean>,
+        transport: typeof SshTransport,
+        serverKeyCallback: (key: SshPublicKey) => Promise<boolean>,
         config?: Config,
     ): Promise<SSHClient> {
         const eventInterface = new ClientEventInterface()
-
         const russhClient = await russh.connect(
             transport,
             config?.preferred?.ciphers,
@@ -186,7 +160,7 @@ export class AuthenticatedSSHClient extends Destructible {
         })))))
 
     constructor(
-        private client: russh.SshClient,
+        private client: SshClient,
         private events: ClientEventInterface,
     ) { super() }
 
@@ -237,7 +211,7 @@ export class AuthenticatedSSHClient extends Destructible {
         await this.client.disconnect()
     }
 
-    private async wrapChannel(channel: russh.SshChannel): Promise<Channel> {
+    private async wrapChannel(channel: SshChannel): Promise<Channel> {
         let id = await channel.id()
         return new Channel(id, channel, this.events)
     }
@@ -255,7 +229,7 @@ export {
     supportedKeyTypes as getSupportedKeyTypes,
     OPEN_APPEND, OPEN_CREATE, OPEN_READ, OPEN_TRUNCATE, OPEN_WRITE,
     SftpFile as SFTPFile,
-} from '../russh'
+} from './native'
 export {
     SFTP, SFTPDirectoryEntry, SFTPMetadata,
 } from './sftp'

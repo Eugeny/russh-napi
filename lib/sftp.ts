@@ -1,5 +1,5 @@
 import { filter, map } from 'rxjs'
-import * as russh from '../russh'
+import * as russh from './native'
 import { ClientEventInterface } from './events'
 import { Destructible } from "./helpers"
 

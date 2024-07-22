@@ -5,5 +5,5 @@ yarn-error.log
 *.node
 *.d.ts
 target
-russh
 *.tgz
+!lib/native.js
