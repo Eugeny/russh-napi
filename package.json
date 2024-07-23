@@ -1,6 +1,6 @@
 {
   "name": "russh",
-  "version": "0.0.1-alpha.5",
+  "version": "0.0.1-alpha.6",
   "main": "lib/index.js",
   "license": "Apache-2.0",
   "dependencies": {
@@ -17,7 +17,8 @@
   "scripts": {
     "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
-    "build:debug": "napi build --dts lib/native.d.ts --platform"
+    "build:debug": "napi build --dts lib/native.d.ts --platform",
+    "local": "npm run build:debug && tsc"
   },
   "peerDependencies": {
     "rxjs": "^7"

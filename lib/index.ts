@@ -35,7 +35,7 @@ export type KeyboardInteractiveAuthenticationState = {
     state: 'infoRequest'
     name: string
     instructions: string
-    prompts: () => typeof KeyboardInteractiveAuthenticationPrompt[]
+    prompts: () => KeyboardInteractiveAuthenticationPrompt[]
 }
 
 export interface Config {
@@ -58,7 +58,7 @@ export class SSHClient extends Destructible {
     ) { super() }
 
     static async connect(
-        transport: typeof SshTransport,
+        transport: SshTransport,
         serverKeyCallback: (key: SshPublicKey) => Promise<boolean>,
         config?: Config,
     ): Promise<SSHClient> {
