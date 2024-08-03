@@ -55,7 +55,17 @@ impl SshChannel {
     pub async fn request_shell(&self) -> napi::Result<()> {
         let handle = self.handle.lock().await;
         handle
-            .request_shell(false)
+            .request_shell(true)
+            .await
+            .map_err(WrappedError::from)?;
+        Ok(())
+    }
+
+    #[napi]
+    pub async fn request_exec(&self, command: String) -> napi::Result<()> {
+        let handle = self.handle.lock().await;
+        handle
+            .exec(true, command)
             .await
             .map_err(WrappedError::from)?;
         Ok(())

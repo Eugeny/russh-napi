@@ -19,6 +19,7 @@ export interface X11Options {
 
 export class Channel extends Destructible {
     readonly data$: Observable<Uint8Array>
+    readonly extendedData$: Observable<[number, Uint8Array]>
     readonly eof$: Observable<void>
     readonly closed$: Observable<void>
 
@@ -29,6 +30,7 @@ export class Channel extends Destructible {
     ) {
         super()
         this.data$ = events.data$.pipe(filter(([channel]) => channel === id), map(([_, data]) => data))
+        this.extendedData$ = events.extendedData$.pipe(filter(([channel]) => channel === id), map(([_, ext, data]) => [ext, data]))
         this.eof$ = events.eof$.pipe(filter(channel => channel === id), map(() => { }))
         this.closed$ = events.close$.pipe(filter(channel => channel === id), map(() => { }))
     }
@@ -36,6 +38,11 @@ export class Channel extends Destructible {
     async requestShell(): Promise<void> {
         this.assertNotDestructed()
         await this.inner.requestShell()
+    }
+
+    async requestExec(command: string): Promise<void> {
+        this.assertNotDestructed()
+        await this.inner.requestExec(command)
     }
 
     async requestPTY(

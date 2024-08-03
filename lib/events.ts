@@ -3,6 +3,7 @@ import { AsyncSubject, Subject } from "rxjs"
 
 export class ClientEventInterface {
     data$ = new Subject<[number, Uint8Array]>()
+    extendedData$ = new Subject<[number, number, Uint8Array]>()
     eof$ = new Subject<number>()
     close$ = new Subject<number>()
     disconnect$ = new Subject<void>()
@@ -10,8 +11,9 @@ export class ClientEventInterface {
     tcpChannelOpen$ = new Subject<[russh.SshChannel, string, number, string, number]>()
     banner$ = new AsyncSubject<string>()
 
-    complete() {
+    complete () {
         this.data$.complete()
+        this.extendedData$.complete()
         this.eof$.complete()
         this.close$.complete()
         this.disconnect$.complete()
@@ -22,6 +24,10 @@ export class ClientEventInterface {
 
     dataCallback = (_: unknown, channel: number, data: Uint8Array) => {
         this.data$.next([channel, data])
+    }
+
+    extendedDataCallback = (_: unknown, channel: number, ext: number, data: Uint8Array) => {
+        this.extendedData$.next([channel, ext, data])
     }
 
     eofCallback = (_: unknown, channel: number) => {

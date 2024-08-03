@@ -72,6 +72,7 @@ export class SSHClient extends Destructible {
             config?.preferred?.compression,
             (_, k) => serverKeyCallback(k),
             eventInterface.dataCallback,
+            eventInterface.extendedDataCallback,
             eventInterface.eofCallback,
             eventInterface.closeCallback,
             eventInterface.disconnectCallback,
@@ -81,7 +82,7 @@ export class SSHClient extends Destructible {
         )
 
         eventInterface.disconnect$.subscribe(() => {
-            eventInterface.complete()
+            setTimeout(() => eventInterface.complete())
         })
 
         return new SSHClient(russhClient, eventInterface)

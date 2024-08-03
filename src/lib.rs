@@ -27,6 +27,7 @@ use transport::SshTransport;
 pub struct SSHClientHandler {
     pub server_key_callback: ThreadsafeFunction<SshPublicKey, Promise<bool>>,
     pub data_callback: ThreadsafeFunction<(u32, Uint8Array)>,
+    pub extended_data_callback: ThreadsafeFunction<(u32, u32, Uint8Array)>,
     pub eof_callback: ThreadsafeFunction<u32>,
     pub close_callback: ThreadsafeFunction<u32>,
     pub disconnect_callback: ThreadsafeFunction<Option<napi::Error>>,
@@ -99,6 +100,20 @@ impl russh::client::Handler for SSHClientHandler {
     ) -> Result<(), Self::Error> {
         self.data_callback.call(
             Ok((channel.into(), data.into())),
+            ThreadsafeFunctionCallMode::NonBlocking,
+        );
+        Ok(())
+    }
+
+    async fn extended_data(
+        &mut self,
+        channel: ChannelId,
+        ext: u32,
+        data: &[u8],
+        _session: &mut russh::client::Session,
+    ) -> Result<(), Self::Error> {
+        self.extended_data_callback.call(
+            Ok((channel.into(), ext, data.into())),
             ThreadsafeFunctionCallMode::NonBlocking,
         );
         Ok(())
@@ -403,6 +418,7 @@ pub async fn connect(
     compression_algos: Option<Vec<String>>,
     server_key_callback: ThreadsafeFunction<SshPublicKey, Promise<bool>>,
     data_callback: ThreadsafeFunction<(u32, Uint8Array)>,
+    extended_data_callback: ThreadsafeFunction<(u32, u32, Uint8Array)>,
     eof_callback: ThreadsafeFunction<u32>,
     close_callback: ThreadsafeFunction<u32>,
     disconnect_callback: ThreadsafeFunction<Option<napi::Error>>,
@@ -413,6 +429,7 @@ pub async fn connect(
     let handler = SSHClientHandler {
         server_key_callback,
         data_callback,
+        extended_data_callback,
         eof_callback,
         close_callback,
         disconnect_callback,
