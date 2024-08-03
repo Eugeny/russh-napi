@@ -222,6 +222,7 @@ export {
     KeyboardInteractiveAuthenticationPrompt,
     SshPublicKey,
     SshTransport,
+    SshChannel,
     SftpFileType as SFTPFileType,
     supportedCiphers as getSupportedCiphers,
     supportedKexAlgorithms as getSupportedKexAlgorithms,

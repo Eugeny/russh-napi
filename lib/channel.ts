@@ -35,6 +35,12 @@ export class Channel extends Destructible {
         this.closed$ = events.close$.pipe(filter(channel => channel === id), map(() => { }))
     }
 
+    async take(): Promise<russh.SshChannel> {
+        this.assertNotDestructed()
+        this.destruct()
+        return this.inner
+    }
+
     async requestShell(): Promise<void> {
         this.assertNotDestructed()
         await this.inner.requestShell()

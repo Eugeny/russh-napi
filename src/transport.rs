@@ -10,12 +10,15 @@ use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::Mutex;
 
+use crate::channel::SshChannel;
+
 #[napi]
 pub struct SshTransport(Arc<Mutex<Option<SshTransportInner>>>);
 
 pub(crate) enum SshTransportInner {
     Socket(TcpStream),
     Command(Child),
+    SshChannel(russh::ChannelStream<russh::client::Msg>),
 }
 
 impl Drop for SshTransportInner {
@@ -27,9 +30,11 @@ impl Drop for SshTransportInner {
             SshTransportInner::Command(child) => {
                 let _ = child.kill();
             }
+            SshTransportInner::SshChannel(_) => {
+                // just drop the stream
+            }
         }
     }
-
 }
 
 #[napi]
@@ -56,22 +61,39 @@ impl SshTransport {
         )))))
     }
 
+    #[napi]
+    pub async fn new_ssh_channel(channel: &SshChannel) -> napi::Result<SshTransport> {
+        let Some(handle) = channel.take().await else {
+            return Err(napi::Error::new(
+                napi::Status::GenericFailure,
+                "Channel is already consumed",
+            ));
+        };
+
+        let stream = handle.into_stream();
+
+        Ok(Self(Arc::new(Mutex::new(Some(
+            SshTransportInner::SshChannel(stream),
+        )))))
+    }
+
     pub(crate) async fn take(&self) -> Option<SshTransportInner> {
         self.0.lock().await.take()
     }
 }
 
 impl AsyncRead for SshTransportInner {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        match self.get_mut() {
-            SshTransportInner::Socket(socket) => Pin::new(socket).poll_read(cx, buf),
-            SshTransportInner::Command(child) => {
-                Pin::new(child.stdout.as_mut().unwrap()).poll_read(cx, buf)
-            }
+    delegate! {
+        to match self.get_mut() {
+            SshTransportInner::Socket(stream) => Pin::new(stream),
+            SshTransportInner::Command(child) => Pin::new(child.stdout.as_mut().unwrap()),
+            SshTransportInner::SshChannel(stream) => Pin::new(stream),
+        } {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+                buf: &mut ReadBuf<'_>,
+            ) -> Poll<Result<(), std::io::Error>>;
         }
     }
 }
@@ -81,6 +103,7 @@ impl AsyncWrite for SshTransportInner {
         to match self.get_mut() {
             SshTransportInner::Socket(stream) => Pin::new(stream),
             SshTransportInner::Command(child) => Pin::new(child.stdin.as_mut().unwrap()),
+            SshTransportInner::SshChannel(stream) => Pin::new(stream),
         } {
             fn poll_write(
                 self: Pin<&mut Self>,
@@ -104,6 +127,7 @@ impl AsyncWrite for SshTransportInner {
         to match self {
             SshTransportInner::Socket(stream) => Pin::new(stream),
             SshTransportInner::Command(child) => Pin::new(child.stdin.as_ref().unwrap()),
+            SshTransportInner::SshChannel(stream) => Pin::new(stream),
         } {
             fn is_write_vectored(&self) -> bool;
         }

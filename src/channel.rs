@@ -8,22 +8,40 @@ use crate::error::WrappedError;
 
 #[napi]
 pub struct SshChannel {
-    handle: Arc<Mutex<russh::Channel<russh::client::Msg>>>,
+    handle: Arc<Mutex<Option<russh::Channel<russh::client::Msg>>>>,
 }
 
 impl From<russh::Channel<russh::client::Msg>> for SshChannel {
     fn from(ch: russh::Channel<russh::client::Msg>) -> Self {
         SshChannel {
-            handle: Arc::new(Mutex::new(ch)),
+            handle: Arc::new(Mutex::new(Some(ch))),
         }
     }
 }
 
+macro_rules! lock_channel {
+    ($self: expr, $handle: ident) => {
+        let locked = $self.handle.lock().await;
+        let Some(ref $handle) = *locked else {
+            return Err(napi::Error::new(
+                napi::Status::GenericFailure,
+                "Channel is already consumed",
+            ));
+        };
+    };
+}
+
 #[napi]
 impl SshChannel {
+    pub async fn take(&self) -> Option<russh::Channel<russh::client::Msg>> {
+        let mut handle = self.handle.lock().await;
+        handle.take()
+    }
+
     #[napi]
-    pub async fn id(&self) -> u32 {
-        self.handle.lock().await.id().into()
+    pub async fn id(&self) -> napi::Result<u32> {
+        lock_channel!(self, handle);
+        Ok(handle.id().into())
     }
 
     #[napi]
@@ -35,7 +53,7 @@ impl SshChannel {
         pix_width: u32,
         pix_height: u32,
     ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle
             .request_pty(
                 false,
@@ -53,7 +71,7 @@ impl SshChannel {
 
     #[napi]
     pub async fn request_shell(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle
             .request_shell(true)
             .await
@@ -63,7 +81,7 @@ impl SshChannel {
 
     #[napi]
     pub async fn request_exec(&self, command: String) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle
             .exec(true, command)
             .await
@@ -79,7 +97,7 @@ impl SshChannel {
         x11_cookie: String,
         screen: u32,
     ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle
             .request_x11(false, single_connection, &x11_protocol, &x11_cookie, screen)
             .await
@@ -95,7 +113,7 @@ impl SshChannel {
         pix_width: u32,
         pix_height: u32,
     ) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle
             .window_change(col_width, row_height, pix_width, pix_height)
             .await
@@ -105,7 +123,7 @@ impl SshChannel {
 
     #[napi]
     pub async fn data(&self, data: Uint8Array) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle.data(&data[..]).await.map_err(|_| {
             napi::Error::new(
                 napi::Status::GenericFailure,
@@ -117,14 +135,14 @@ impl SshChannel {
 
     #[napi]
     pub async fn eof(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle.eof().await.map_err(WrappedError::from)?;
         Ok(())
     }
 
     #[napi]
     pub async fn close(&self) -> napi::Result<()> {
-        let handle = self.handle.lock().await;
+        lock_channel!(self, handle);
         handle.close().await.map_err(WrappedError::from)?;
         Ok(())
     }
