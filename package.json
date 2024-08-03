@@ -20,7 +20,7 @@
     "build:debug": "napi build --dts lib/native.d.ts --platform",
     "local": "npm run build && tsc",
     "local:debug": "npm run build:debug && tsc",
-    "prepublish": "tsc"
+    "prepublishOnly": "tsc"
   },
   "peerDependencies": {
     "rxjs": "^7"
