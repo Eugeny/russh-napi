@@ -14,9 +14,9 @@ log = "0.4"
 napi = { version = "3.0.0-alpha", features = ["async"] }
 napi-derive = "3.0.0-alpha"
 tokio = { version = "1.17.0", features = ["macros"] }
-russh = { version = "0.44.0-beta.3" }
+russh = { version = "0.45.0" }
 # russh = { version = "0.44.0-beta.3", path = "./russh/russh" }
-russh-keys = { version = "0.44.0-beta.3" }
+russh-keys = { version = "0.45.0" }
 # russh-keys = { version = "0.44.0-beta.2", path = "./russh/russh-keys" }
 async-trait = "0.1"
 futures = "0.3"
