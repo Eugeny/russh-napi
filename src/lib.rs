@@ -9,6 +9,7 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use russh::client::DisconnectReason;
 use russh::ChannelId;
+use russh_keys::agent::client::{AgentClient, AgentStream};
 use russh_sftp::client::SftpSession;
 use sftp::SftpChannel;
 use tokio::sync::Mutex;
@@ -21,6 +22,7 @@ mod key;
 mod sftp;
 mod transport;
 
+pub use key::is_pageant_running;
 pub use key::parse_key;
 use transport::SshTransport;
 
@@ -268,6 +270,27 @@ impl From<russh::client::KeyboardInteractiveAuthResponse>
 }
 
 #[napi]
+pub enum AgentConnectionKind {
+    Pageant,
+    Pipe,
+    Unix,
+}
+
+#[napi]
+pub struct AgentConnection {
+    pub kind: AgentConnectionKind,
+    pub path: Option<String>,
+}
+
+#[napi]
+impl AgentConnection {
+    #[napi]
+    pub fn new(kind: AgentConnectionKind, path: Option<String>) -> Self {
+        Self { kind, path }
+    }
+}
+
+#[napi]
 pub struct SshClient {
     handle: Arc<Mutex<russh::client::Handle<SSHClientHandler>>>,
 }
@@ -332,6 +355,69 @@ impl SshClient {
                 x
             })
             .map(Into::into);
+    }
+
+    async fn get_agent_client(
+        connection: &AgentConnection,
+    ) -> Result<AgentClient<impl AgentStream + Send>, WrappedError> {
+        match connection.kind {
+            AgentConnectionKind::Pageant => {
+                #[cfg(windows)]
+                return Ok(AgentClient::connect_pageant()
+                    .await
+                    .dynamic());
+                #[cfg(not(windows))]
+                Err(russh_keys::Error::AgentFailure.into())
+            }
+            AgentConnectionKind::Pipe => {
+                #[cfg(windows)]
+                return Ok(AgentClient::connect_named_pipe(
+                    &connection.path.clone().unwrap_or_default(),
+                )
+                .await
+                .map_err(WrappedError::from)?
+                .dynamic());
+                #[cfg(not(windows))]
+                Err(russh_keys::Error::AgentFailure.into())
+            }
+            AgentConnectionKind::Unix => {
+                #[cfg(unix)]
+                return Ok(
+                    AgentClient::connect_uds(&connection.path.clone().unwrap_or_default())
+                        .await
+                        .map_err(WrappedError::from)?
+                        .dynamic(),
+                );
+                #[cfg(not(unix))]
+                Err(russh_keys::Error::AgentFailure.into())
+            }
+        }
+    }
+
+    #[napi]
+    pub async fn authenticate_agent(
+        &self,
+        username: String,
+        connection: &AgentConnection,
+    ) -> napi::Result<bool> {
+        let mut handle = self.handle.lock().await;
+
+        let mut agent = Self::get_agent_client(connection).await?;
+
+        let keys = agent
+            .request_identities()
+            .await
+            .map_err(WrappedError::from)?;
+        for key in keys {
+            let (_agent, result) = handle.authenticate_future(&username, key, agent).await;
+            agent = _agent;
+            let ret = result.map_err(|e| napi::Error::from(WrappedError::from(e)))?;
+            if ret {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     #[napi]

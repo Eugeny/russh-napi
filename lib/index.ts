@@ -4,7 +4,7 @@ import { SFTP } from './sftp'
 import { Channel } from './channel'
 import { ClientEventInterface } from './events'
 
-import russh, { SshKeyPair, KeyboardInteractiveAuthenticationPrompt, SshClient, SshChannel, SshPublicKey, SshTransport } from './native'
+import russh, { SshKeyPair, KeyboardInteractiveAuthenticationPrompt, SshClient, SshChannel, SshPublicKey, SshTransport, AgentConnection, AgentConnectionKind } from './native'
 
 export class KeyPair {
     private constructor(protected inner: SshKeyPair) { }
@@ -124,6 +124,36 @@ export class SSHClient extends Destructible {
         return result as unknown as KeyboardInteractiveAuthenticationState
     }
 
+    async authenticateWithAgent(
+        username: string,
+        connection: {
+            kind: 'pageant',
+        } | {
+            kind: 'named-pipe',
+            path: string,
+        } | {
+            kind: 'unix-socket',
+            path: string
+        },
+    ): Promise<AuthenticatedSSHClient | null> {
+        this.assertNotDestructed()
+        const result = await this.client.authenticateAgent(
+            username,
+            AgentConnection.new(
+                {
+                    pageant: AgentConnectionKind.Pageant,
+                    'named-pipe': AgentConnectionKind.Pipe,
+                    'unix-socket': AgentConnectionKind.Unix,
+                }[connection.kind],
+                connection.kind === 'pageant' ? undefined : connection.path,
+            ),
+        )
+        if (result) {
+            return this.intoAuthenticated()
+        }
+        return null
+    }
+
     async disconnect(): Promise<void> {
         this.destruct()
         await this.client.disconnect()
@@ -231,6 +261,7 @@ export {
     supportedKeyTypes as getSupportedKeyTypes,
     OPEN_APPEND, OPEN_CREATE, OPEN_READ, OPEN_TRUNCATE, OPEN_WRITE,
     SftpFile as SFTPFile,
+    isPageantRunning,
 } from './native'
 export {
     SFTP, SFTPDirectoryEntry, SFTPMetadata,

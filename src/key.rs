@@ -62,3 +62,12 @@ pub fn parse_key(data: String, password: Option<String>) -> napi::Result<SshKeyP
         .map_err(|e| WrappedError::from(russh::Error::from(e)).into())
         .map(|key| SshKeyPair { inner: key })
 }
+
+#[napi]
+pub fn is_pageant_running() -> bool {
+    #[cfg(windows)]
+    return pageant::is_pageant_running();
+
+    #[cfg(unix)]
+    false
+}
