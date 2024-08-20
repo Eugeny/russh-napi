@@ -98,7 +98,7 @@ pub async fn connect_agent(
     connection: &AgentConnection,
     callback: ThreadsafeFunction<Uint8Array>,
 ) -> napi::Result<SshAgentStream> {
-    let stream = get_agent_client(&connection).await?.into_inner();
+    let stream = get_agent_client(connection).await?.into_inner();
     let (mut r, w) = tokio::io::split(stream);
     let writer = Arc::new(Mutex::new(Some(w)));
 

@@ -149,7 +149,7 @@ impl russh::client::Handler for SSHClientHandler {
     ) -> Result<(), Self::Error> {
         self.disconnect_callback.call(
             Ok(match reason {
-                DisconnectReason::Error(e) => Some(WrappedError::from(e).into()),
+                DisconnectReason::Error(e) => Some(e.into()),
                 DisconnectReason::ReceivedDisconnect(_) => None,
             }),
             ThreadsafeFunctionCallMode::NonBlocking,
@@ -295,11 +295,11 @@ impl SshClient {
         password: String,
     ) -> napi::Result<bool> {
         let mut handle = self.handle.lock().await;
-        return handle
+        handle
             .authenticate_password(username, password)
             .await
             .map_err(WrappedError::from)
-            .map_err(Into::into);
+            .map_err(Into::into)
     }
 
     #[napi]
@@ -309,11 +309,11 @@ impl SshClient {
         key: &SshKeyPair,
     ) -> napi::Result<bool> {
         let mut handle = self.handle.lock().await;
-        return handle
+        handle
             .authenticate_publickey(username, Arc::new(key.inner.clone()))
             .await
             .map_err(WrappedError::from)
-            .map_err(Into::into);
+            .map_err(Into::into)
     }
 
     #[napi]
@@ -322,12 +322,12 @@ impl SshClient {
         username: String,
     ) -> napi::Result<KeyboardInteractiveAuthenticationState> {
         let mut handle = self.handle.lock().await;
-        return handle
+        handle
             .authenticate_keyboard_interactive_start(username, None)
             .await
             .map_err(WrappedError::from)
             .map_err(Into::into)
-            .map(Into::into);
+            .map(Into::into)
     }
 
     #[napi]
@@ -336,7 +336,7 @@ impl SshClient {
         responses: Vec<String>,
     ) -> napi::Result<KeyboardInteractiveAuthenticationState> {
         let mut handle = self.handle.lock().await;
-        return handle
+        handle
             .authenticate_keyboard_interactive_respond(responses)
             .await
             .map_err(WrappedError::from)
@@ -345,7 +345,7 @@ impl SshClient {
                 dbg!(&x);
                 x
             })
-            .map(Into::into);
+            .map(Into::into)
     }
 
     #[napi]
