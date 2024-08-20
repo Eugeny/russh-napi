@@ -9,6 +9,7 @@ export class ClientEventInterface {
     disconnect$ = new Subject<void>()
     x11ChannelOpen$ = new Subject<[russh.SshChannel, string, number]>()
     tcpChannelOpen$ = new Subject<[russh.SshChannel, string, number, string, number]>()
+    agentChannelOpen$ = new Subject<[russh.SshChannel]>()
     banner$ = new AsyncSubject<string>()
 
     complete () {
@@ -19,6 +20,7 @@ export class ClientEventInterface {
         this.disconnect$.complete()
         this.x11ChannelOpen$.complete()
         this.tcpChannelOpen$.complete()
+        this.agentChannelOpen$.complete()
         this.banner$.complete()
     }
 
@@ -48,6 +50,10 @@ export class ClientEventInterface {
 
     tcpChannelOpenCallback = (_: unknown, channel: russh.SshChannel, connectedAddress: string, connectedPort: number, originatorAddress: string, originatorPort: number) => {
         this.tcpChannelOpen$.next([channel, connectedAddress, connectedPort, originatorAddress, originatorPort])
+    }
+
+    agentChannelOpenCallback = (_: unknown, channel: russh.SshChannel) => {
+        this.agentChannelOpen$.next([channel])
     }
 
     bannerCallback = (_: unknown, banner: string) => {

@@ -106,6 +106,16 @@ impl SshChannel {
     }
 
     #[napi]
+    pub async fn request_agent_forwarding(&self) -> napi::Result<()> {
+        lock_channel!(self, handle);
+        handle
+            .agent_forward(false)
+            .await
+            .map_err(WrappedError::from)?;
+        Ok(())
+    }
+
+    #[napi]
     pub async fn window_change(
         &self,
         col_width: u32,

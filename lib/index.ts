@@ -4,7 +4,8 @@ import { SFTP } from './sftp'
 import { Channel } from './channel'
 import { ClientEventInterface } from './events'
 
-import russh, { SshKeyPair, KeyboardInteractiveAuthenticationPrompt, SshClient, SshChannel, SshPublicKey, SshTransport, AgentConnection, AgentConnectionKind } from './native'
+import russh, { SshKeyPair, KeyboardInteractiveAuthenticationPrompt, SshClient, SshChannel, SshPublicKey, SshTransport } from './native'
+import { AgentConnectionSpec, makeRusshAgentConnection } from './agent'
 
 export class KeyPair {
     private constructor(protected inner: SshKeyPair) { }
@@ -78,6 +79,7 @@ export class SSHClient extends Destructible {
             eventInterface.disconnectCallback,
             eventInterface.x11ChannelOpenCallback,
             eventInterface.tcpChannelOpenCallback,
+            eventInterface.agentChannelOpenCallback,
             eventInterface.bannerCallback,
         )
 
@@ -126,27 +128,12 @@ export class SSHClient extends Destructible {
 
     async authenticateWithAgent(
         username: string,
-        connection: {
-            kind: 'pageant',
-        } | {
-            kind: 'named-pipe',
-            path: string,
-        } | {
-            kind: 'unix-socket',
-            path: string
-        },
+        connection: AgentConnectionSpec,
     ): Promise<AuthenticatedSSHClient | null> {
         this.assertNotDestructed()
         const result = await this.client.authenticateAgent(
             username,
-            AgentConnection.new(
-                {
-                    pageant: AgentConnectionKind.Pageant,
-                    'named-pipe': AgentConnectionKind.Pipe,
-                    'unix-socket': AgentConnectionKind.Unix,
-                }[connection.kind],
-                connection.kind === 'pageant' ? undefined : connection.path,
-            ),
+            makeRusshAgentConnection(connection),
         )
         if (result) {
             return this.intoAuthenticated()
@@ -189,6 +176,9 @@ export class AuthenticatedSSHClient extends Destructible {
             clientAddress,
             clientPort,
         })))))
+
+    readonly agentChannelOpen$: Observable<Channel> = this.events.agentChannelOpen$.pipe(mergeMap(([ch]) =>
+        from(this.wrapChannel(ch))))
 
     constructor(
         private client: SshClient,
@@ -266,4 +256,5 @@ export {
 export {
     SFTP, SFTPDirectoryEntry, SFTPMetadata,
 } from './sftp'
+export { AgentConnectionSpec, SSHAgentStream } from './agent'
 export { Channel }

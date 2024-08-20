@@ -51,6 +51,11 @@ export class Channel extends Destructible {
         await this.inner.requestExec(command)
     }
 
+    async requestAgentForwarding(): Promise<void> {
+        this.assertNotDestructed()
+        await this.inner.requestAgentForwarding()
+    }
+
     async requestPTY(
         terminal: string,
         opts: PTYSize,

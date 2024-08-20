@@ -9,19 +9,20 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use russh::client::DisconnectReason;
 use russh::ChannelId;
-use russh_keys::agent::client::{AgentClient, AgentStream};
 use russh_sftp::client::SftpSession;
 use sftp::SftpChannel;
 use tokio::sync::Mutex;
 
 use error::WrappedError;
 
+mod agent;
 mod channel;
 mod error;
 mod key;
 mod sftp;
 mod transport;
 
+pub use agent::*;
 pub use key::is_pageant_running;
 pub use key::parse_key;
 use transport::SshTransport;
@@ -35,6 +36,7 @@ pub struct SSHClientHandler {
     pub disconnect_callback: ThreadsafeFunction<Option<napi::Error>>,
     pub x11_channel_open_callback: ThreadsafeFunction<(SshChannel, String, u32)>,
     pub tcpip_channel_open_callback: ThreadsafeFunction<(SshChannel, String, u32, String, u32)>,
+    pub agent_channel_open_callback: ThreadsafeFunction<SshChannel>,
     pub banner_callback: ThreadsafeFunction<String>,
 }
 
@@ -191,6 +193,16 @@ impl russh::client::Handler for SSHClientHandler {
         Ok(())
     }
 
+    async fn server_channel_open_agent_forward(
+        &mut self,
+        channel: russh::Channel<russh::client::Msg>,
+        _session: &mut russh::client::Session,
+    ) -> Result<(), Self::Error> {
+        self.agent_channel_open_callback
+            .call(Ok(channel.into()), ThreadsafeFunctionCallMode::NonBlocking);
+        Ok(())
+    }
+
     async fn auth_banner(
         &mut self,
         banner: &str,
@@ -270,27 +282,6 @@ impl From<russh::client::KeyboardInteractiveAuthResponse>
 }
 
 #[napi]
-pub enum AgentConnectionKind {
-    Pageant,
-    Pipe,
-    Unix,
-}
-
-#[napi]
-pub struct AgentConnection {
-    pub kind: AgentConnectionKind,
-    pub path: Option<String>,
-}
-
-#[napi]
-impl AgentConnection {
-    #[napi]
-    pub fn new(kind: AgentConnectionKind, path: Option<String>) -> Self {
-        Self { kind, path }
-    }
-}
-
-#[napi]
 pub struct SshClient {
     handle: Arc<Mutex<russh::client::Handle<SSHClientHandler>>>,
 }
@@ -357,43 +348,6 @@ impl SshClient {
             .map(Into::into);
     }
 
-    async fn get_agent_client(
-        connection: &AgentConnection,
-    ) -> Result<AgentClient<impl AgentStream + Send>, WrappedError> {
-        match connection.kind {
-            AgentConnectionKind::Pageant => {
-                #[cfg(windows)]
-                return Ok(AgentClient::connect_pageant()
-                    .await
-                    .dynamic());
-                #[cfg(not(windows))]
-                Err(russh_keys::Error::AgentFailure.into())
-            }
-            AgentConnectionKind::Pipe => {
-                #[cfg(windows)]
-                return Ok(AgentClient::connect_named_pipe(
-                    &connection.path.clone().unwrap_or_default(),
-                )
-                .await
-                .map_err(WrappedError::from)?
-                .dynamic());
-                #[cfg(not(windows))]
-                Err(russh_keys::Error::AgentFailure.into())
-            }
-            AgentConnectionKind::Unix => {
-                #[cfg(unix)]
-                return Ok(
-                    AgentClient::connect_uds(&connection.path.clone().unwrap_or_default())
-                        .await
-                        .map_err(WrappedError::from)?
-                        .dynamic(),
-                );
-                #[cfg(not(unix))]
-                Err(russh_keys::Error::AgentFailure.into())
-            }
-        }
-    }
-
     #[napi]
     pub async fn authenticate_agent(
         &self,
@@ -402,7 +356,7 @@ impl SshClient {
     ) -> napi::Result<bool> {
         let mut handle = self.handle.lock().await;
 
-        let mut agent = Self::get_agent_client(connection).await?;
+        let mut agent = get_agent_client(connection).await?;
 
         let keys = agent
             .request_identities()
@@ -510,6 +464,7 @@ pub async fn connect(
     disconnect_callback: ThreadsafeFunction<Option<napi::Error>>,
     x11_channel_open_callback: ThreadsafeFunction<(SshChannel, String, u32)>,
     tcpip_channel_open_callback: ThreadsafeFunction<(SshChannel, String, u32, String, u32)>,
+    agent_channel_open_callback: ThreadsafeFunction<SshChannel>,
     banner_callback: ThreadsafeFunction<String>,
 ) -> napi::Result<SshClient> {
     let handler = SSHClientHandler {
@@ -521,6 +476,7 @@ pub async fn connect(
         disconnect_callback,
         x11_channel_open_callback,
         tcpip_channel_open_callback,
+        agent_channel_open_callback,
         banner_callback,
     };
 
