@@ -457,6 +457,7 @@ pub async fn connect(
     key_algos: Option<Vec<String>>,
     mac_algos: Option<Vec<String>>,
     compression_algos: Option<Vec<String>>,
+    connection_timeout_seconds: Option<u32>,
     keepalive_interval_seconds: Option<u32>,
     keepalive_max: u32,
     server_key_callback: ThreadsafeFunction<SshPublicKey, Promise<bool>>,
@@ -529,9 +530,18 @@ pub async fn connect(
         ));
     };
 
-    let handle = russh::client::connect_stream(Arc::new(cfg), transport, handler)
+    let connection_fut = russh::client::connect_stream(Arc::new(cfg), transport, handler);
+    let handle = if let Some(connection_timeout_seconds) = connection_timeout_seconds {
+        tokio::time::timeout(
+            Duration::from_secs(connection_timeout_seconds as u64),
+            connection_fut,
+        )
         .await
-        .map_err(WrappedError::from)?;
+        .map_err(|_| napi::Error::new(napi::Status::GenericFailure, "Connection timeout"))?
+        .map_err(WrappedError::from)?
+    } else {
+        connection_fut.await.map_err(WrappedError::from)?
+    };
 
     Ok(SshClient {
         handle: Arc::new(Mutex::new(handle)),
