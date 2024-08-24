@@ -47,6 +47,8 @@ export interface Config {
         mac?: string[],
         compression?: string[],
     },
+    keepaliveIntervalSeconds?: number,
+    keepaliveCountMax?: number,
 }
 
 export class SSHClient extends Destructible {
@@ -71,6 +73,8 @@ export class SSHClient extends Destructible {
             config?.preferred?.key,
             config?.preferred?.mac,
             config?.preferred?.compression,
+            config?.keepaliveIntervalSeconds,
+            config?.keepaliveCountMax ?? 3,
             (_, k) => serverKeyCallback(k),
             eventInterface.dataCallback,
             eventInterface.extendedDataCallback,

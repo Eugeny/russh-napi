@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use channel::SshChannel;
@@ -456,6 +457,8 @@ pub async fn connect(
     key_algos: Option<Vec<String>>,
     mac_algos: Option<Vec<String>>,
     compression_algos: Option<Vec<String>>,
+    keepalive_interval_seconds: Option<u32>,
+    keepalive_max: u32,
     server_key_callback: ThreadsafeFunction<SshPublicKey, Promise<bool>>,
     data_callback: ThreadsafeFunction<(u32, Uint8Array)>,
     extended_data_callback: ThreadsafeFunction<(u32, u32, Uint8Array)>,
@@ -514,6 +517,8 @@ pub async fn connect(
 
     let cfg = russh::client::Config {
         preferred,
+        keepalive_interval: keepalive_interval_seconds.map(|x| Duration::from_secs(x as u64)),
+        keepalive_max: keepalive_max as usize,
         ..Default::default()
     };
 
