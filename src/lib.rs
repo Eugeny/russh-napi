@@ -96,11 +96,12 @@ impl russh::client::Handler for SSHClientHandler {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
+        // todo handle certs
         let response = self
             .server_key_callback
-            .call_async(Ok(SshPublicKey::from(server_public_key.clone())))
+            .call_async(Ok(SshPublicKey::from(server_public_key.public_key())))
             .await?
             .await?;
 
@@ -173,8 +174,10 @@ impl russh::client::Handler for SSHClientHandler {
         channel: russh::Channel<russh::client::Msg>,
         originator_address: &str,
         originator_port: u32,
+        reply: russh::ChannelOpenHandleInner<russh::client::Msg>,
         _session: &mut russh::client::Session,
     ) -> Result<(), Self::Error> {
+        reply.accept().await;
         self.x11_channel_open_callback.call(
             Ok((channel.into(), originator_address.into(), originator_port)),
             ThreadsafeFunctionCallMode::NonBlocking,
@@ -189,8 +192,10 @@ impl russh::client::Handler for SSHClientHandler {
         connected_port: u32,
         originator_address: &str,
         originator_port: u32,
+        reply: russh::ChannelOpenHandleInner<russh::client::Msg>,
         _session: &mut russh::client::Session,
     ) -> Result<(), Self::Error> {
+        reply.accept().await;
         self.tcpip_channel_open_callback.call(
             Ok((
                 channel.into(),
@@ -207,8 +212,10 @@ impl russh::client::Handler for SSHClientHandler {
     async fn server_channel_open_agent_forward(
         &mut self,
         channel: russh::Channel<russh::client::Msg>,
+        reply: russh::ChannelOpenHandleInner<russh::client::Msg>,
         _session: &mut russh::client::Session,
     ) -> Result<(), Self::Error> {
+        reply.accept().await;
         self.agent_channel_open_callback
             .call(Ok(channel.into()), ThreadsafeFunctionCallMode::NonBlocking);
         Ok(())

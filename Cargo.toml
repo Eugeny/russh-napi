@@ -14,7 +14,7 @@ log = "0.4"
 napi = { version = "=3.0.0-alpha.24", features = ["async"] }
 napi-derive = "=3.0.0-alpha.24"
 tokio = { version = "1.17.0", features = ["macros", "process"] }
-russh = { version = "0.60.1", default-features = false, features = [
+russh = { version = "0.63.3", default-features = false, features = [
     "ring",
     "rsa",
     "flate2",
@@ -24,11 +24,11 @@ russh = { version = "0.60.1", default-features = false, features = [
 #      "rsa",
 #      "flate2",
 #  ] }
-pageant = { version = "0.1" }
+pageant = { version = "0.2.3" }
 futures = "0.3"
 thiserror = "2.0"
 delegate = "0.13"
-russh-sftp = "2.0.2"
+russh-sftp = "3"
 env_logger = "0.11"
 tokio-socks = "0.5.2"
 async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
