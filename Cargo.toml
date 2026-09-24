@@ -4,15 +4,15 @@ license = "Apache-2.0"
 name = "russh-napi"
 repository = "https://github.com/warp-tech/russh"
 version = "0.1.0"
-rust-version = "1.75"
+rust-version = "1.89"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4"
-napi = { version = "=3.0.0-alpha.24", features = ["async"] }
-napi-derive = "=3.0.0-alpha.24"
+napi = { version = "=3.0.0", features = ["async", "dyn-symbols"] }
+napi-derive = "=3.0.0"
 tokio = { version = "1.17.0", features = ["macros", "process"] }
 russh = { version = "0.63.3", default-features = false, features = [
     "ring",
