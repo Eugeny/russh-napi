@@ -68,6 +68,9 @@ class ChannelEventBuffer<T = void> {
     }
 }
 
+/** How long a closed channel's events are still delivered to its subscribers. */
+const LATE_EVENTS_GRACE_MS = 5000
+
 export class ClientEventInterface {
     data$ = new ChannelEventBuffer<Uint8Array>()
     extendedData$ = new ChannelEventBuffer<[number, Uint8Array]>()
@@ -105,10 +108,15 @@ export class ClientEventInterface {
 
     closeCallback = (_: unknown, channel: number) => {
         this.close$.next(channel)
-        this.data$.closeChannel(channel)
-        this.extendedData$.closeChannel(channel)
-        this.eof$.closeChannel(channel)
-        this.close$.closeChannel(channel)
+        // Data, extended data, EOF and close arrive through separate threadsafe functions, so a channel's last data
+        // can be dispatched after its close. Keep its buffers for a while, so that late events still reach its
+        // subscribers instead of a new buffer that nobody reads. (Channel IDs are not reused.)
+        setTimeout(() => {
+            this.data$.closeChannel(channel)
+            this.extendedData$.closeChannel(channel)
+            this.eof$.closeChannel(channel)
+            this.close$.closeChannel(channel)
+        }, LATE_EVENTS_GRACE_MS).unref?.()
     }
 
     disconnectCallback = () => {
