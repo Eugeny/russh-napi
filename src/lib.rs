@@ -437,6 +437,22 @@ impl SshClient {
 
         let keys = match specific_key {
             Some(k) => {
+                // Offer it only if the agent holds it; OpenSSH likewise only signs through the
+                // agent with keys the agent listed (Eugeny/tabby#11743).
+                let held = agent
+                    .request_identities()
+                    .await
+                    .map_err(WrappedError::from)?
+                    .iter()
+                    .any(|identity| identity.public_key().key_data() == k.inner().key_data());
+                if !held {
+                    debug!("The agent doesn't hold {:?}, not offering it", k.inner());
+                    return Ok(AuthResult::Failure {
+                        remaining_methods: MethodSet::empty(),
+                        partial_success: false,
+                    }
+                    .into());
+                }
                 debug!("Trying specified key {:?}", k.inner());
                 vec![k.inner().clone().into()]
             }
