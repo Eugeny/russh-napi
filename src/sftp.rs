@@ -5,7 +5,7 @@ use napi_derive::napi;
 use russh_sftp::client::fs::DirEntry;
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::{FileAttributes, FileType, OpenFlags};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom};
 use tokio::sync::Mutex;
 
 use crate::error::WrappedError;
@@ -130,6 +130,29 @@ impl SftpFile {
             .await
             .map_err(WrappedError::from)?;
         Ok(Uint8Array::from(&buf[..len]))
+    }
+
+    /// Reads from an absolute byte offset and advances the cursor past the bytes read.
+    #[napi]
+    pub async fn read_at(&self, offset: f64, n: u32) -> napi::Result<Uint8Array> {
+        const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+        if !(0.0..=MAX_SAFE_INTEGER).contains(&offset) || offset.fract() != 0.0 {
+            return Err(napi::Error::new(
+                napi::Status::InvalidArg,
+                "offset must be a non-negative safe integer",
+            ));
+        }
+
+        // Keep the seek and read together so another operation cannot move the cursor.
+        let mut handle = self.handle.lock().await;
+        handle
+            .seek(SeekFrom::Start(offset as u64))
+            .await
+            .map_err(WrappedError::from)?;
+        let mut buf = vec![0; n as usize];
+        let len = handle.read(&mut buf).await.map_err(WrappedError::from)?;
+        buf.truncate(len);
+        Ok(Uint8Array::from(buf))
     }
 
     #[napi]
